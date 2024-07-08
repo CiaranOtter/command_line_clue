@@ -3,14 +3,9 @@ package main
 import (
 	"command_line_clue/clue"
 	"fmt"
-	"strconv"
-	"strings"
 )
 
-var Players []*clue.Player
-
 func main() {
-	clue.ReadFile("data/characters.csv", "data/rooms.csv", "data/weapons.csv")
 
 	// clue.PrintWeapons()
 
@@ -71,62 +66,4 @@ func main() {
 	// player.BeforeTurn()
 	// clue.PrintWeapons()
 
-}
-
-func CheckAvailable(index int) (bool, *clue.Player) {
-	for _, pl := range Players {
-		if (pl.Char != nil) && (strings.Compare(pl.Char.CharacterName, clue.Characters[index].CharacterName) == 0) {
-			return false, pl
-		}
-	}
-
-	return true, nil
-}
-
-func PickChar() *clue.Player {
-
-	fmt.Printf("Whats your name: ")
-	var name string
-
-	fmt.Scan(&name)
-
-	fmt.Printf("Pick a character:\n")
-	total := 0
-	for i, char := range clue.Characters {
-		total++
-		fmt.Printf("(%d) %s", total, char.GetString())
-
-		if av, p := CheckAvailable(i); !av {
-			fmt.Printf(" -> %s", p.GetString())
-		}
-
-		fmt.Printf("\n")
-	}
-	fmt.Printf("\n")
-	var choice string
-	var charChoice *clue.Character
-
-	for {
-		fmt.Scan(&choice)
-
-		i, err := strconv.Atoi(choice)
-
-		if (err != nil) || (i <= 0 && i > total) {
-			fmt.Printf("%s is not a valid choice\n")
-			continue
-		}
-
-		av, p := CheckAvailable(i - 1)
-		if !av {
-			fmt.Printf("%s has already been taken by %s\n", clue.Characters[i-1].GetString(), p.GetString())
-			continue
-		}
-
-		charChoice = clue.Characters[i-1]
-		break
-	}
-
-	s := clue.NewSheet(clue.DuplicateWeap(), clue.DuplicateRooms(), clue.DuplicateChars())
-
-	return clue.NewPlayer(name, charChoice, s)
 }

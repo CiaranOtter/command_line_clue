@@ -149,7 +149,7 @@ func ShuffleCards() {
 	}
 }
 
-func FindClues() {
+func FindClues() (int, int, int) {
 	i := rand.Intn(len(Characters))
 	j := rand.Intn(len(Rooms))
 	k := rand.Intn(len(Weapons))
@@ -176,5 +176,5 @@ func FindClues() {
 	}
 
 	ShuffleCards()
-
+	return i, j, k
 }

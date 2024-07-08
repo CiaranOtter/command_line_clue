@@ -1,0 +1,62 @@
+syntax="proto3";
+
+option go_package = "clue/comm";
+
+message Message {
+    oneof data {
+        Connect con = 1;
+        Opponent opp = 2;
+        Command com = 3;
+        GameEnd end = 4;
+        SetPlayer setChar = 5;
+        StartGame start = 6;
+        RemoveAnswer rAns = 7;
+        Cards cards = 8;
+    }
+}
+
+message RemoveAnswer {
+    int32 Room = 1;
+    int32 Char = 2;
+    int32 Weap = 3;
+}
+
+message Cards {
+    repeated int32 index = 1;
+}
+
+message Opponent {
+    string PlayerName = 1;
+    oneof data {
+        Connect con = 2;
+        SetPlayer setChar = 3;
+    }
+}
+
+message GameEnd {
+
+}
+
+enum CommandType {
+    PICK_CHAR = 0;
+}
+
+message Command {
+    CommandType type = 1;
+}
+
+message Connect {
+    string playerName = 1;
+}
+
+message SetPlayer {
+    string CharacterName = 1;
+}
+
+message StartGame {
+
+}
+
+service ClueService {
+    rpc GameStream(stream Message) returns(stream Message); 
+}

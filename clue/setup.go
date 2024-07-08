@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-func ReadFile(charFile string, roomFile string, weaponRoom string) {
+func ReadFile(charFile string, roomFile string, weaponRoom string) ([]*Character, []*Room, []*Weapon) {
 
 	file, err := os.Open(roomFile)
 
@@ -52,4 +52,6 @@ func ReadFile(charFile string, roomFile string, weaponRoom string) {
 	for _, row := range records {
 		Characters = append(Characters, NewCharacter(row[0], row[1], row[2]))
 	}
+
+	return Characters, Rooms, Weapons
 }
