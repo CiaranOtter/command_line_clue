@@ -1,23 +1,35 @@
 package clue
 
 import (
+	"command_line_clue/screen"
 	"fmt"
 	"strconv"
 	"strings"
 )
 
 type Player struct {
-	Char        *Character
-	PlayerName  string
-	Sheet       *CSheet
-	Cards       []Card
-	CurrentRoom *Room
+	Char          *Character
+	PlayerName    string
+	Sheet         *CSheet
+	Cards         []Card
+	CurrentRoom   *Room
+	Waiting_block *screen.Block
 }
 
 type CSheet struct {
 	Chars   []*Character
 	Rooms   []*Room
 	Weapons []*Weapon
+}
+
+var Colours = map[string]string{
+	"Yellow": "\033[33m",
+	"Red":    "\033[31m",
+	"Purple": "\033[35m",
+	"Green":  "\033[32m",
+	"White":  "\033[37m",
+	"Blue":   "\033[34m",
+	"Reset":  "\033[0m",
 }
 
 func (p *Player) MarkCard(card Card) {
@@ -34,16 +46,26 @@ func (p *Player) MarkCard(card Card) {
 
 }
 
+func (p *Player) GetCharacter(name string) *Character {
+	for _, char := range p.Sheet.Chars {
+		if char.IsCharacter(name) {
+			return char
+		}
+	}
+
+	return nil
+}
+
 func (p *Player) GetString() string {
 	return fmt.Sprintf("%s%s%s", Colours[p.Char.Colour], p.PlayerName, Colours["Reset"])
 }
 
-func (p *Player) FinalAccusation() bool {
-	return Solve.CheckAnswer(p.PickCharacter(true), p.PickWeapon(), p.PickRoom())
+func (p *Player) FinalAccusation(s *screen.Block) bool {
+	return Solve.CheckAnswer(p.PickCharacter(true, s), p.PickWeapon(s), p.PickRoom())
 
 }
 
-func (p *Player) CheckHas(char *Character, weap *Weapon, room *Room) (bool, Card) {
+func (p *Player) CheckHas(char *Character, weap *Weapon, room *Room) (bool, []Card) {
 	showCards := make([]Card, 0)
 
 	for _, card := range p.Cards {
@@ -70,27 +92,39 @@ func (p *Player) CheckHas(char *Character, weap *Weapon, room *Room) (bool, Card
 		return false, nil
 	}
 
-	return true, p.AskShow(showCards)
+	return true, showCards
 }
 
-func (p *Player) AskShow(cards []Card) Card {
-	fmt.Printf("Which of these cards would you like you show?\n")
+func (p *Player) GetCards(cardName []string) []Card {
+	cards := make([]Card, 0)
+	for _, card := range p.Cards {
+		for i, name := range cardName {
+			if strings.Compare(name, card.GetValue()) == 0 {
+				cards = append(cards, card)
+				cardName = append(cardName[:i], cardName[i+1:]...)
+				break
+			}
+		}
+	}
+
+	return cards
+}
+
+func (p *Player) AskShow(cards []Card, s *screen.Block) Card {
+
+	l := make(map[int]string)
 
 	for i, c := range cards {
-		fmt.Printf("(%d) %s\n", i+1, c.GetString())
+		l[i+1] = c.GetString()
 	}
 
-	fmt.Printf("Your choice: ")
-	var choice string
+	cl, resp := screen.NewChoiceList("Which of these cards would you like you show?", l)
 
-	fmt.Scan(&choice)
+	s.AddBlock(cl)
 
-	i, err := strconv.Atoi(choice)
+	i := <-resp
 
-	if (err != nil) || (i < 1 || i > len(cards)) {
-		fmt.Printf("%s is not a valid choice.\n")
-		return p.AskShow(cards)
-	}
+	s.Clear()
 
 	return cards[i-1]
 }
@@ -114,92 +148,109 @@ func (p *Player) PickRoom() *Room {
 	return p.Sheet.Rooms[i-1]
 }
 
-func (p *Player) PickCharacter(makred bool) *Character {
-	fmt.Printf("Pick a character:\n")
+func (p *Player) PickCharacter(makred bool, s *screen.Block) *Character {
+
+	c := make(map[int]string)
+
 	for i, char := range p.Sheet.Chars {
-		fmt.Printf("(%d) %s", i+1, char.GetString())
+		c[i+1] = char.GetString()
 		if makred && char.Marked {
-			fmt.Printf(": X")
+			c[i+1] = fmt.Sprintf("%s: X", c[i+1])
 		}
-		fmt.Printf("\n")
 	}
 
-	var pchoice string
-	fmt.Printf("Your choice: ")
-	fmt.Scan(&pchoice)
+	list, resp := screen.NewChoiceList("Pick a character:", c)
 
-	i, err := strconv.Atoi(pchoice)
+	s.AddBlock(list)
 
-	if (err != nil) || (i < 1 || i > len(p.Sheet.Chars)) {
-		fmt.Printf("%s is not a valid choice.")
-		return p.PickCharacter(makred)
+	i := <-resp
 
-	}
+	s.RemoveBlock(list)
 
 	return p.Sheet.Chars[i-1]
 }
 
-func (p *Player) PickWeapon() *Weapon {
-	fmt.Printf("Pick a murder weapon:\n")
+func (p *Player) PickWeapon(s *screen.Block) *Weapon {
+	c := make(map[int]string)
 
 	for i, weap := range p.Sheet.Weapons {
-		fmt.Printf("(%d) %s\n", i+1, weap.GetString())
+		c[i+1] = weap.GetString()
 	}
 
-	var pChoice string
-	fmt.Printf("Your choice: ")
-	fmt.Scan(&pChoice)
+	list, resp := screen.NewChoiceList("Pick a murder weapon:", c)
 
-	i, err := strconv.Atoi(pChoice)
+	s.AddBlock(list)
 
-	if (err != nil) || (i < 1 || i > len(p.Sheet.Weapons)) {
-		fmt.Printf("%s is not a valid choice.\n", pChoice)
-		return p.PickWeapon()
-	}
+	i := <-resp
+
+	s.RemoveBlock(list)
 
 	return p.Sheet.Weapons[i-1]
 }
 
-func (p *Player) MakeAccusation() (*Character, *Weapon, *Room) {
-	char := p.PickCharacter(true)
-	weap := p.PickWeapon()
+func (p *Player) MakeAccusation(s *screen.Block) (*Character, *Weapon, *Room) {
+	char := p.PickCharacter(true, s)
+	weap := p.PickWeapon(s)
 	room := p.CurrentRoom
 
 	return char, weap, room
 }
 
-func (p *Player) MakeMove() {
-	fmt.Printf("You can move to:\n")
+func (p *Player) ApplyMove(RoomName string) bool {
+	if p.CurrentRoom == nil {
+
+		if p.Char.ClosestRoom.IsRoom(RoomName) {
+			p.CurrentRoom = p.Char.ClosestRoom
+			return true
+		}
+
+		return false
+
+	} else {
+
+		if p.CurrentRoom.IsRoom(RoomName) {
+			return true
+		}
+
+		for _, r := range p.CurrentRoom.Neighbors {
+			if r.Neighbor.IsRoom(RoomName) {
+				p.CurrentRoom = r.Neighbor
+				return true
+			}
+		}
+
+		return false
+	}
+}
+
+func (p *Player) MakeMove(s *screen.Block) {
 	total := 0
+
+	c := make(map[int]string)
+
 	if p.CurrentRoom == nil {
 		total++
-		fmt.Printf("(%d) %s\n", total, p.Char.ClosestRoom.RoomName)
+		c[total] = p.Char.ClosestRoom.RoomName
 	} else {
 		for _, r := range p.CurrentRoom.Neighbors {
 			total++
-			fmt.Printf("(%d) %s", total, r.Neighbor.RoomName)
+			c[total] = r.Neighbor.RoomName
 
 			if r.Passage {
-				fmt.Printf(" (secret passage)")
+				c[total] = fmt.Sprintf("%s (secret passage)", c[total])
 			}
-
-			fmt.Printf("\n")
 		}
 
 		total++
-		fmt.Printf("Or (%d) stay where you are", total)
+		c[total] = fmt.Sprintf("Stay in the %s", p.CurrentRoom.GetString())
+
 	}
 
-	var choice string
-	fmt.Scan(&choice)
+	l, v := screen.NewChoiceList("You can move to:", c)
+	s.AddBlock(l)
 
-	i, err := strconv.Atoi(choice)
-
-	if (err != nil) || (i < 1 || i > total) {
-		fmt.Printf("%s is not a valid choice.\n")
-		defer p.MakeMove()
-		return
-	}
+	i := <-v
+	s.RemoveBlock(l)
 
 	if p.CurrentRoom == nil {
 		p.CurrentRoom = p.Char.ClosestRoom
@@ -218,91 +269,88 @@ func (p *Player) MakeMove() {
 
 }
 
-func (p *Player) AfterTurn() {
-	fmt.Printf("Would you like to do anything before ending your turn?\n")
+func (p *Player) AfterTurn(s *screen.Block) {
+	c := make(map[int]string)
+	c[1] = "Show clue sheet"
+	c[2] = "Look at Cards"
+	c[3] = "Make Accusation"
+	c[4] = "End Turn"
 
-	fmt.Printf("(1) Show clue sheet\n")
-	fmt.Printf("(2) Look at Cards\n")
-	fmt.Printf("(3) Make Accusation\n")
-	fmt.Printf("(4) End Turn\n")
+	list, resp := screen.NewChoiceList("Would you like to do anything before ending your turn?", c)
 
-	fmt.Printf("Your choice:\n")
+	s.AddBlock(list)
 
-	var choice string
-	fmt.Scan(&choice)
+	chosen := false
 
-	i, err := strconv.Atoi(choice)
+	for !chosen {
+		i := <-resp
 
-	if (err != nil) || (i < 1 || i > 4) {
-		fmt.Printf("%s is an invalid choice.\n")
-		defer p.AfterTurn()
-		return
+		switch i {
+		case 1:
+			s.RemoveBlock(list)
+			p.ClueSheet(s)
+			s.AddBlock(list)
+		case 2:
+			s.RemoveBlock(list)
+			p.PrintCards()
+			s.AddBlock(list)
+		case 3:
+			s.RemoveBlock(list)
+			p.FinalAccusation(s)
+			s.AddBlock(list)
+		case 4:
+			chosen = true
+		}
 	}
 
-	switch i {
-	case 1:
-		p.ClueSheet()
-		defer p.AfterTurn()
-		break
-	case 2:
-		p.PrintCards()
-		defer p.AfterTurn()
-		break
-	case 3:
-		p.FinalAccusation()
-		break
-	case 4:
-		break
-	}
+	s.RemoveBlock(list)
 
 	return
 }
 
-func (p *Player) BeforeTurn() {
-	fmt.Printf("%s's Turn:\n", p.GetString())
-	fmt.Printf("\n")
+func (p *Player) BeforeTurn(s *screen.Block) {
 
+	heading := screen.NewHeading("Your Turn", "=")
+	var text *screen.Heading
 	if p.CurrentRoom == nil {
-		fmt.Printf("%s is the closests room.\n", p.Char.ClosestRoom.RoomName)
+		text = screen.NewHeading(fmt.Sprintf("%s is the closests room.\n", p.Char.ClosestRoom.RoomName), " ")
 	} else {
-		p.CurrentRoom.PrintNeighbors()
-	}
-	fmt.Printf("\n")
-	fmt.Printf("What would you like to do?\n")
-
-	fmt.Printf("(1) Show Clue sheet.\n")
-	fmt.Printf("(2) Edit Clue sheet.\n")
-	fmt.Printf("(3) Show Cards.\n")
-	fmt.Printf("(4) Roll dice.\n")
-
-	var c string
-	fmt.Scan(&c)
-
-	i, err := strconv.Atoi(c)
-
-	if (err != nil) || (i < 1 || i > 3) {
-		fmt.Printf("%s is not a valid choice.\n")
-		defer p.BeforeTurn()
-		return
+		text = screen.NewHeading(p.CurrentRoom.PrintNeighbors(), " ")
 	}
 
-	switch i {
-	case 1:
-		p.ClueSheet()
-		defer p.BeforeTurn()
-		return
-	case 2:
-		p.EditClueSheet()
-		defer p.BeforeTurn()
-		return
-	case 3:
-		p.PrintCards()
-		defer p.BeforeTurn()
-		return
-	case 4:
-		p.Roll()
-		return
+	c := make(map[int]string)
+	c[1] = "Show Clue sheet."
+	c[2] = "Edit Clue sheet."
+	c[3] = "Show Cards."
+	c[4] = "Roll dice."
+	list, resp := screen.NewChoiceList("What would you like to do?\n", c)
+
+	tb := screen.NewBlock(5, 5, []screen.PrintInterface{heading, text, list})
+	s.AddBlock(tb)
+
+	chosen := false
+	for !chosen {
+		chocie := <-resp
+
+		switch chocie {
+		case 1:
+			s.RemoveBlock(tb)
+			p.ClueSheet(s)
+			s.AddBlock(tb)
+		case 2:
+			s.RemoveBlock(tb)
+			p.EditClueSheet()
+			s.AddBlock(tb)
+		case 3:
+			p.PrintCards()
+		case 4:
+			p.Roll()
+			chosen = true
+		}
 	}
+
+	s.RemoveBlock(tb)
+
 }
 
 func (p *Player) Roll() {
@@ -419,56 +467,103 @@ func (p *Player) EditClueSheet() {
 	return
 }
 
-func (p *Player) ClueSheet() {
-	fmt.Printf("Characters:\n")
+func (p *Player) ClueSheet(s *screen.Block) {
+
+	heading := "CLUE SHEET"
+	sHeading := "Characters:"
+
+	chars := make([]string, 0)
+
 	for _, char := range p.Sheet.Chars {
-		fmt.Printf("\t%s: ", char.GetString())
+		s := fmt.Sprintf("\t")
 		if char.Marked {
-			fmt.Printf("X")
+			s = fmt.Sprintf("%sX ", s)
 		} else {
-			fmt.Printf(" ")
+			s = fmt.Sprintf("%s  ", s)
 		}
+
+		s = fmt.Sprintf("%s %s", s, char.GetString())
 
 		for _, note := range char.Note {
-			fmt.Printf("%s,", note)
+			s = fmt.Sprintf("%s%s,", s, note)
 		}
 
-		fmt.Printf("\n")
+		chars = append(chars, s)
 	}
 
-	fmt.Printf("Weapons:\n")
-	for _, weap := range p.Sheet.Weapons {
-		fmt.Printf("\t%s: ", weap.GetString())
+	cList := screen.NewBlock(5, 5, []screen.PrintInterface{
+		screen.NewHeading(sHeading, "-"),
+		screen.NewList(chars),
+	})
 
+	wHeading := "Weapons:"
+	weaps := make([]string, 0)
+
+	for _, weap := range p.Sheet.Weapons {
+
+		s := fmt.Sprintf("\t")
 		if weap.Marked {
-			fmt.Printf("X")
+			s = fmt.Sprintf("%sX ", s)
 		} else {
-			fmt.Printf(" ")
+			s = fmt.Sprintf("%s  ", s)
 		}
+
+		s = fmt.Sprintf("%s%s: ", s, weap.GetString())
 
 		for _, note := range weap.Note {
-			fmt.Printf("%s,", note)
+			s = fmt.Sprintf("%s%s,", s, note)
 		}
 
-		fmt.Printf("\n")
+		weaps = append(weaps, s)
 	}
 
-	fmt.Printf("Rooms:\n")
+	wList := screen.NewBlock(5, 5, []screen.PrintInterface{
+		screen.NewHeading(wHeading, "-"),
+		screen.NewList(weaps),
+	})
+
+	rHeading := "Rooms:"
+	rooms := make([]string, 0)
 	for _, r := range p.Sheet.Rooms {
-		fmt.Printf("\t%s: ", r.GetString())
+
+		s := fmt.Sprintf("\t")
 
 		if r.Marked {
-			fmt.Printf("X")
+			s = fmt.Sprintf("%sX ", s)
 		} else {
-			fmt.Printf(" ")
+			s = fmt.Sprintf("%s  ", s)
 		}
+
+		s = fmt.Sprintf("%s%s: ", s, r.GetString())
 
 		for _, note := range r.Note {
-			fmt.Printf("%s,", note)
+			s = fmt.Sprintf("%s%s,", s, note)
 		}
 
-		fmt.Printf("\n")
+		rooms = append(rooms, s)
 	}
+
+	rList := screen.NewBlock(5, 5, []screen.PrintInterface{
+		screen.NewHeading(rHeading, "-"),
+		screen.NewList(rooms),
+	})
+
+	exit, e := screen.NewChoiceList("", map[int]string{
+		1: "done",
+	})
+	block := screen.NewBlock(5, 5, []screen.PrintInterface{
+		screen.NewHeading(heading, "="),
+		cList,
+		wList,
+		rList,
+		exit,
+	})
+
+	s.AddBlock(block)
+
+	<-e
+
+	s.RemoveBlock(block)
 }
 
 func (p *Player) Print() {

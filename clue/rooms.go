@@ -1,6 +1,9 @@
 package clue
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type Neighbor struct {
 	Neighbor *Room
@@ -12,6 +15,14 @@ type Room struct {
 	Marked    bool
 	Note      []string
 	Neighbors []*Neighbor
+}
+
+func (r *Room) IsRoom(name string) bool {
+	if strings.Compare(name, r.RoomName) == 0 {
+		return true
+	}
+
+	return false
 }
 
 func (c *Room) ClearNote() {
@@ -34,21 +45,23 @@ func (r *Room) GetString() string {
 	return r.RoomName
 }
 
-func (r *Room) PrintNeighbors() {
-	fmt.Printf("Current Room: %s\n", r.RoomName)
+func (r *Room) PrintNeighbors() string {
+	s := fmt.Sprintf("Current Room: %s\n", r.RoomName)
 	for _, n := range r.Neighbors {
-		fmt.Printf("Neighbor: %s\n", n.Neighbor.RoomName)
+		s = fmt.Sprintf("%sNeighbor: %s\n", s, n.Neighbor.RoomName)
 	}
-	fmt.Printf("\n")
+	s = fmt.Sprintf("%s\n", s)
 
+	return s
 }
 
 func (r *Room) GetValue() string {
 	return r.RoomName
 }
 
-func (r *Room) PrintCard() {
-	fmt.Printf("Room: %s\n", r.RoomName)
+func (r *Room) PrintCard() string {
+
+	return r.RoomName
 }
 
 func (r *Room) GetType() int {

@@ -1,11 +1,21 @@
 package clue
 
-import "fmt"
+import (
+	"strings"
+)
 
 type Weapon struct {
 	Name   string
 	Marked bool
 	Note   []string
+}
+
+func (c *Weapon) IsWeapon(name string) bool {
+	if strings.Compare(c.Name, name) == 0 {
+		return true
+	}
+
+	return false
 }
 
 func (c *Weapon) ClearNote() {
@@ -31,8 +41,8 @@ func (w *Weapon) GetValue() string {
 	return w.Name
 }
 
-func (w *Weapon) PrintCard() {
-	fmt.Printf("Weapon: %s\n", w.Name)
+func (w *Weapon) PrintCard() string {
+	return w.Name
 }
 
 func (w *Weapon) GetType() int {

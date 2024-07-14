@@ -3,217 +3,635 @@ package main
 import (
 	"command_line_clue/clue"
 	"command_line_clue/clue/comm"
+	"command_line_clue/screen"
 	"context"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 )
 
-var Players map[string]*clue.Player
-var Player *clue.Player
-var Name string
-var Stream comm.ClueService_GameStreamClient
+type Game struct {
+	Stream         *comm.ClueService_GameStreamClient
+	Player         *clue.Player
+	Players        map[string]*clue.Player
+	Screen         *screen.Screen
+	GameHeading    *screen.Block
+	GameBody       *screen.Block
+	Waiting_Screen *screen.Block
+	Running        bool
+	Characters     map[string]*clue.Character
+	Weapons        map[string]*clue.Weapon
+	Rooms          map[string]*clue.Room
+	Cards          map[string]clue.Card
+}
 
-func HandleCommand(message *comm.Command) {
-	switch message.GetType() {
-	case comm.CommandType_PICK_CHAR:
-		Player = PickChar(Name)
+var G *Game
 
-		Players[Name] = Player
+func (g *Game) AddOpponent(opp *comm.Connect) {
+	g.Players[opp.GetPlayerName()] = &clue.Player{
+		PlayerName: opp.GetPlayerName(),
+		Waiting_block: screen.NewBlock(5, 5, []screen.PrintInterface{
+			screen.NewHeading(fmt.Sprintf("%s has joined the game", opp.GetPlayerName()), " "),
+		}),
+	}
 
-		Stream.Send(&comm.Message{
-			Data: &comm.Message_SetChar{
-				SetChar: &comm.SetPlayer{
-					CharacterName: Player.Char.CharacterName,
+	g.Waiting_Screen.AddBlock(g.Players[opp.GetPlayerName()].Waiting_block)
+}
+
+func (g *Game) SetChar(name string, opp *comm.SetPlayer) {
+	g.Players[name] = clue.NewPlayer(name, g.Characters[opp.GetCharacterName()], clue.NewSheet(clue.DuplicateWeap(), clue.DuplicateRooms(), clue.DuplicateChars()))
+	g.Waiting_Screen.RemoveBlock(g.Players[name].Waiting_block)
+	g.Players[name].Waiting_block = screen.NewBlock(5, 5, []screen.PrintInterface{
+		screen.NewHeading(fmt.Sprintf("%s has joined as %s", name, g.Players[name].Char.GetString()), " "),
+	})
+	g.Waiting_Screen.AddBlock(g.Players[name].Waiting_block)
+
+}
+
+func (g *Game) AskShow(name string, ask *comm.AskShow) {
+	c := make(map[int]string)
+	real := make(map[int]string)
+
+	iter := 0
+	for _, card := range g.Player.Cards {
+
+		for _, a := range ask.GetCards() {
+			//
+			if strings.Compare(card.GetValue(), a) == 0 {
+				iter++
+				c[iter] = card.GetString()
+				real[iter] = a
+				break
+			}
+		}
+	}
+
+	if len(c) == 0 {
+		(*g.Stream).Send(&comm.Message{
+			Data: &comm.Message_Show{
+				Show: &comm.Show{
+					Card:    "",
+					HasCard: false,
 				},
 			},
 		})
+		return
+	}
 
-		break
+	g.GameBody.Clear()
+	cl, in := screen.NewChoiceList(fmt.Sprintf("Which of the following cards would you like to show %s", g.Players[name].GetString()), c)
+	g.GameBody.AddBlock(cl)
+
+	choice := <-in
+
+	g.GameBody.Clear()
+
+	(*g.Stream).Send(&comm.Message{
+		Data: &comm.Message_Show{
+			Show: &comm.Show{
+				Card:       real[choice],
+				PlayerName: g.Player.PlayerName,
+				HasCard:    true,
+			},
+		},
+	})
+}
+
+func (g *Game) OppTurn(name string) {
+	g.GameBody.Clear()
+
+	g.GameBody.AddBlock(screen.NewHeading(fmt.Sprintf("%s's turn", g.Players[name].GetString()), "+"))
+}
+
+func (g *Game) MovePlayer(name string, roomName string) {
+	g.GameBody.AddBlock(screen.NewHeading(fmt.Sprintf("%s has moved to the %s", g.Players[name].GetString(), g.Rooms[roomName].GetString()), " "))
+	g.Players[name].CurrentRoom = g.Rooms[roomName]
+}
+
+func (g *Game) HandleOpponent(opp *comm.Opponent) {
+	switch opp.GetData().(type) {
+	case *comm.Opponent_Con:
+		g.AddOpponent(opp.GetCon())
+	case *comm.Opponent_SetChar:
+		g.SetChar(opp.GetPlayerName(), opp.GetSetChar())
+	case *comm.Opponent_Ask:
+		g.AskShow(opp.GetPlayerName(), opp.GetAsk())
+	case *comm.Opponent_Move:
+		g.MovePlayer(opp.GetPlayerName(), opp.GetMove().GetRoomName())
+	case *comm.Opponent_Startturn:
+		g.OppTurn(opp.GetPlayerName())
 	}
 }
 
-func HandleOpponent(message *comm.Opponent) {
+func (s *Game) GetCards(cards []string) {
+	s.Cards = make(map[string]clue.Card)
+	for _, c := range s.Characters {
+		s.Cards[c.GetValue()] = c
+	}
 
-	t := message.GetData()
+	for _, w := range s.Weapons {
+		s.Cards[w.GetValue()] = w
+	}
 
-	Name := message.GetPlayerName()
+	for _, r := range s.Rooms {
+		s.Cards[r.GetValue()] = r
+	}
 
-	switch t.(type) {
-	case *comm.Opponent_Con:
-		fmt.Printf("Another player has connected.\n")
-		Players[message.GetCon().GetPlayerName()] = &clue.Player{
-			PlayerName: message.GetCon().GetPlayerName(),
+	for _, card := range cards {
+		s.Player.Cards = append(s.Player.Cards, s.Cards[card])
+	}
+
+	s.Player.AutoMark()
+}
+
+func (g *Game) StartGame() {
+	g.GameBody.Clear()
+	g.GameBody.AddBlock(screen.NewHeading("Starting game", "="))
+}
+
+func (g *Game) ShowClueSheet(cl *screen.Block) {
+
+	cl.Clear()
+	char := make([]string, 0)
+	for _, c := range g.Player.Sheet.Chars {
+		s := c.GetString()
+
+		if c.Marked {
+			s = fmt.Sprintf("\tX\t%s", s)
+		} else {
+			s = fmt.Sprintf("\t \t%s", s)
 		}
-		break
-	case *comm.Opponent_SetChar:
-		fmt.Printf("Setting opponents character.\n")
 
-		for _, char := range clue.Characters {
-			if strings.Compare(char.CharacterName, message.GetSetChar().GetCharacterName()) == 0 {
-				Players[Name] = clue.NewPlayer(Name, char, nil)
-				return
+		char = append(char, s)
+	}
+
+	weap := make([]string, 0)
+
+	for _, w := range g.Player.Sheet.Weapons {
+		s := w.GetString()
+
+		if w.Marked {
+			s = fmt.Sprintf("\tX\t%s", s)
+		} else {
+			s = fmt.Sprintf("\t \t%s", s)
+		}
+
+		weap = append(weap, s)
+	}
+
+	room := make([]string, 0)
+
+	for _, r := range g.Player.Sheet.Rooms {
+		s := r.GetString()
+
+		if r.Marked {
+			s = fmt.Sprintf("\tX\t%s", s)
+		} else {
+			s = fmt.Sprintf("\t \t%s", s)
+		}
+
+		room = append(room, s)
+	}
+
+	cl.AddBlock(screen.NewHeading("Characters:", ""))
+	cl.AddBlock(screen.NewList(char))
+	cl.AddBlock(screen.NewHeading("Weapons:", ""))
+	cl.AddBlock(screen.NewList(weap))
+	cl.AddBlock(screen.NewHeading("Rooms:", ""))
+	cl.AddBlock(screen.NewList(room))
+}
+
+func (g *Game) ShowCards(cl *screen.Block) {
+	cl.Clear()
+
+	c := make([]string, 0)
+
+	for _, card := range g.Player.Cards {
+		c = append(c, card.GetString())
+	}
+
+	cl.AddBlock(screen.NewList(c))
+}
+
+func (g *Game) MakeMove(s *screen.Block) {
+
+	c := make(map[int]string)
+	realRoom := make(map[int]string)
+
+	if g.Player.CurrentRoom == nil {
+		c[1] = fmt.Sprintf("Move to the %s", g.Player.Char.ClosestRoom.RoomName)
+		realRoom[1] = g.Player.Char.ClosestRoom.RoomName
+	} else {
+		c[1] = fmt.Sprintf("Stay in the %s", g.Player.CurrentRoom.RoomName)
+		realRoom[1] = g.Player.CurrentRoom.RoomName
+		iter := 1
+
+		for _, r := range g.Player.CurrentRoom.Neighbors {
+			iter++
+			c[iter] = fmt.Sprintf("Move to the %s", r.Neighbor.RoomName)
+			realRoom[iter] = r.Neighbor.RoomName
+
+			if r.Passage {
+				c[iter] = fmt.Sprintf("%s (secret passage)", c[iter])
 			}
 		}
 
 	}
 
+	cl, in := screen.NewChoiceList("", c)
+	s.AddBlock(cl)
+
+	choice := <-in
+
+	g.Player.CurrentRoom = g.Rooms[realRoom[choice]]
+
+	s.RemoveBlock(cl)
+	s.AddBlock(screen.NewHeading(fmt.Sprintf("You have moved to the %s", g.Player.CurrentRoom.RoomName), " "))
+
+	(*g.Stream).Send(&comm.Message{
+		Data: &comm.Message_Move{
+			Move: &comm.Move{
+				RoomName: g.Player.CurrentRoom.RoomName,
+			},
+		},
+	})
 }
 
-func GetCards(message *comm.Cards) {
+func (g *Game) PickWeap(s *screen.Block) *clue.Weapon {
+	c := make(map[int]string)
+	realChar := make(map[int]string)
 
-	clue.Cards = make([]clue.Card, 0)
-
-	for _, room := range clue.Rooms {
-		clue.Cards = append(clue.Cards, room)
+	iter := 0
+	for _, char := range g.Weapons {
+		iter++
+		c[iter] = char.GetString()
+		realChar[iter] = char.GetValue()
 	}
 
-	for _, char := range clue.Characters {
-		clue.Cards = append(clue.Cards, char)
+	cl, in := screen.NewChoiceList("Who do you think is the murderer?", c)
+
+	s.AddBlock(cl)
+
+	choice := <-in
+
+	s.RemoveBlock(cl)
+	return g.Weapons[realChar[choice]]
+}
+
+func (g *Game) AccChar(s *screen.Block) *clue.Character {
+	c := make(map[int]string)
+	realChar := make(map[int]string)
+
+	iter := 0
+	for _, char := range g.Characters {
+		iter++
+		c[iter] = char.GetString()
+		realChar[iter] = char.GetValue()
 	}
 
-	for _, weap := range clue.Weapons {
-		clue.Cards = append(clue.Cards, weap)
+	cl, in := screen.NewChoiceList("Who do you think is the murderer?", c)
+
+	s.AddBlock(cl)
+
+	choice := <-in
+
+	s.RemoveBlock(cl)
+	return g.Characters[realChar[choice]]
+}
+
+func (g *Game) AccRoom(s *screen.Block) *clue.Room {
+	c := make(map[int]string)
+	realChar := make(map[int]string)
+
+	iter := 0
+	for _, char := range g.Rooms {
+		iter++
+		c[iter] = char.GetString()
+		realChar[iter] = char.GetValue()
 	}
 
-	MyCards := message.GetIndex()
+	cl, in := screen.NewChoiceList("Who do you think is the murderer?", c)
 
-	Player.Cards = make([]clue.Card, 0)
+	s.AddBlock(cl)
 
-	for _, index := range MyCards {
-		Player.Cards = append(Player.Cards, clue.Cards[index])
+	choice := <-in
+
+	s.RemoveBlock(cl)
+	return g.Rooms[realChar[choice]]
+}
+
+func (g *Game) MakeAccusation(s *screen.Block, final bool) {
+	char := g.AccChar(s)
+	weap := g.PickWeap(s)
+
+	var room *clue.Room
+	if final {
+		room = g.AccRoom(s)
+	} else {
+		room = g.Player.CurrentRoom
+	}
+
+	s.AddBlock(screen.NewHeading(fmt.Sprintf("You have accused %s in the %s with the %s", char.GetString(), weap.GetString(), g.Player.CurrentRoom.RoomName), " "))
+
+	(*g.Stream).Send(&comm.Message{
+		Data: &comm.Message_Accuse{
+			Accuse: &comm.Accuse{
+				Char:  char.GetValue(),
+				Weap:  weap.GetValue(),
+				Room:  room.GetValue(),
+				Final: final,
+			},
+		},
+	})
+
+	mes, err := (*g.Stream).Recv()
+
+	if err != nil {
+		log.Fatal()
+	}
+
+	if !mes.GetOpp().GetShow().GetHasCard() {
+		s.AddBlock(screen.NewHeading("No other player has these cards", " "))
+		return
+	}
+
+	player := mes.GetOpp().GetPlayerName()
+	card := mes.GetOpp().GetShow().GetCard()
+
+	s.AddBlock(screen.NewHeading(fmt.Sprintf("%s has show you the card %s", g.Players[player].GetString(), g.Cards[card].GetString()), " "))
+	g.Player.MarkCard(g.Cards[card])
+}
+
+func (g *Game) MyTurn() {
+	g.GameBody.Clear()
+	g.GameBody.AddBlock(screen.NewHeading("Your turn", "+"))
+
+	if g.Player.CurrentRoom == nil {
+		g.GameBody.AddBlock(screen.NewHeading(fmt.Sprintf("The %s is the closest room to you", g.Player.Char.ClosestRoom.RoomName), " "))
+	} else {
+		g.GameBody.AddBlock(screen.NewHeading(fmt.Sprintf("You are currently in the %s", g.Player.CurrentRoom.RoomName), " "))
+	}
+
+	c := make(map[int]string)
+
+	c[1] = "Show clue sheet"
+	c[2] = "Show Cards"
+	c[3] = "Roll Dice"
+
+	ch, choice := screen.NewChoiceList("What would you like to do?", c)
+
+	gameBlock := screen.NewBlock(5, 5, []screen.PrintInterface{})
+	g.GameBody.AddBlock(gameBlock)
+	g.GameBody.AddBlock(ch)
+
+	for {
+		i := <-choice
+
+		if i == 1 {
+			g.ShowClueSheet(gameBlock)
+		}
+
+		if i == 2 {
+			g.ShowCards(gameBlock)
+		}
+
+		if i == 3 {
+			g.GameBody.RemoveBlock(ch)
+			g.GameBody.RemoveBlock(gameBlock)
+			break
+		}
+	}
+
+	gameBlock.Clear()
+	g.GameBody.AddBlock(gameBlock)
+	g.MakeMove(gameBlock)
+
+	g.MakeAccusation(gameBlock, false)
+
+	c[3] = "Make Final accusation"
+	c[4] = "End Turn"
+
+	ch, choice = screen.NewChoiceList("What would you like to do?", c)
+	g.GameBody.AddBlock(ch)
+
+	for {
+		i := <-choice
+
+		if i == 1 {
+			g.ShowClueSheet(gameBlock)
+		}
+
+		if i == 2 {
+			g.ShowCards(gameBlock)
+		}
+
+		if i == 3 {
+			g.MakeAccusation(gameBlock, true)
+		}
+
+		if i == 4 {
+			(*g.Stream).Send(&comm.Message{
+				Data: &comm.Message_Endturn{
+					Endturn: &comm.EndTurn{},
+				},
+			})
+			break
+		}
+	}
+
+	gameBlock.Clear()
+	g.GameBody.Clear()
+
+}
+func (g *Game) HandleMessage() {
+	g.Running = true
+
+	waiting := screen.NewBlock(5, 5, []screen.PrintInterface{
+		screen.NewHeading("Waiting for game to start", "-"),
+		g.Waiting_Screen,
+	})
+
+	g.GameBody.Clear()
+	g.GameBody.AddBlock(waiting)
+
+	for g.Running {
+		mes, err := (*g.Stream).Recv()
+
+		if err != nil {
+			(*g.Stream).CloseSend()
+			g.Running = false
+		}
+
+		switch mes.GetData().(type) {
+		case *comm.Message_Opp:
+			g.HandleOpponent(mes.GetOpp())
+		case *comm.Message_Cards:
+			g.GetCards(mes.GetCards().GetIndex())
+		case *comm.Message_Start:
+			g.StartGame()
+		case *comm.Message_Turn:
+			g.MyTurn()
+		}
 	}
 }
 
-func RemoveCards(message *comm.RemoveAnswer) {
-	clue.Characters = append(clue.Characters[:message.GetChar()], clue.Characters[message.GetChar()+1:]...)
-	clue.Rooms = append(clue.Rooms[:message.GetRoom()], clue.Rooms[message.GetRoom()+1:]...)
-	clue.Weapons = append(clue.Weapons[:message.GetWeap()], clue.Weapons[message.GetWeap()+1:]...)
+func (g *Game) Login() {
+	input, v := screen.NewTextInput("What's your name: ")
+
+	g.GameBody.AddBlock(input)
+	g.Screen.Input = true
+	name := <-v
+	g.Screen.Input = false
+	g.GameBody.Clear()
+
+	(*g.Stream).Send(&comm.Message{
+		Data: &comm.Message_Con{
+			Con: &comm.Connect{
+				PlayerName: name,
+			},
+		},
+	})
+
+	resp, err := (*g.Stream).Recv()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if !resp.GetCon().GetSuccess() {
+		defer g.Login()
+		return
+	}
+
+	g.Players[resp.GetCon().GetPlayerName()] = &clue.Player{
+		PlayerName: resp.GetCon().GetPlayerName(),
+	}
+
+	g.Player = g.Players[resp.GetCon().GetPlayerName()]
+
+	g.GameHeading.PutFirst(screen.NewHeading(g.Player.PlayerName, ""))
+
+	g.PickChar()
+}
+
+func (g *Game) PickChar() {
+
+	g.GameBody.Clear()
+
+	c := make(map[int]string)
+	real_name := make(map[int]string)
+
+	iter := 0
+	for _, char := range g.Characters {
+		iter++
+		c[iter] = char.GetString()
+
+		for _, p := range g.Players {
+			if p.Char != nil && p.Char.IsCharacter(char.CharacterName) {
+				c[iter] = fmt.Sprintf("%s <- %s", c[iter], p.PlayerName)
+			}
+		}
+		real_name[iter] = char.CharacterName
+	}
+
+	list, resp := screen.NewChoiceList("Pick your character", c)
+	g.GameBody.AddBlock(list)
+
+	ch := <-resp
+
+	for _, p := range g.Players {
+		if p.Char != nil && p.Char.IsCharacter(real_name[ch]) {
+			defer g.PickChar()
+			return
+		}
+	}
+
+	g.GameBody.Clear()
+
+	g.Player = clue.NewPlayer(g.Player.PlayerName, g.Characters[real_name[ch]], clue.NewSheet(clue.DuplicateWeap(), clue.DuplicateRooms(), clue.DuplicateChars()))
+
+	(*g.Stream).Send(&comm.Message{
+		Data: &comm.Message_SetChar{
+			SetChar: &comm.SetPlayer{
+				CharacterName: real_name[ch],
+			},
+		},
+	})
+
+	g.GameHeading.PutFirst(screen.NewHeading(g.Player.Char.GetString(), ""))
+	g.GameBody.Clear()
+	g.GameBody.AddBlock(g.Waiting_Screen)
+}
+
+func NewService(uri string) {
+
+}
+
+func refresh() {
+	for G.Screen.Running {
+		time.Sleep(time.Millisecond * 500)
+		G.Screen.Refresh()
+	}
 }
 
 func main() {
+	// connect to the referee
 	conn, err := grpc.NewClient("localhost:5000", grpc.WithInsecure())
 
+	// if there is an errr break
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer conn.Close()
 
+	// Create a New client
 	client := comm.NewClueServiceClient(conn)
 
-	Stream, err = client.GameStream(context.Background())
+	// GEt the stream from the connection
+	stream, err := client.GameStream(context.Background())
 
+	// break if there is an error
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	clue.ReadFile("data/characters.csv", "data/rooms.csv", "data/weapons.csv")
-
-	clue.ConnectRooms()
-	Players = make(map[string]*clue.Player, 0)
-
-	fmt.Printf("What's your name: ")
-	fmt.Scan(&Name)
-
-	Stream.Send(&comm.Message{
-		Data: &comm.Message_Con{
-			Con: &comm.Connect{
-				PlayerName: Name,
-			},
-		},
-	})
-
-	running := true
-
-	for running {
-		command, err := Stream.Recv()
-
-		if err != nil {
-			log.Fatal(err)
-			continue
-		}
-
-		data := command.GetData()
-
-		switch data.(type) {
-		case *comm.Message_End:
-			running = false
-			break
-		case *comm.Message_Com:
-			HandleCommand(command.GetCom())
-			break
-		case *comm.Message_Opp:
-			HandleOpponent(command.GetOpp())
-			break
-		case *comm.Message_Start:
-			fmt.Printf("Starting game\n")
-			break
-		case *comm.Message_Cards:
-			GetCards(command.GetCards())
-			break
-
-		case *comm.Message_RAns:
-			RemoveCards(command.GetRAns())
-			break
-		}
+	G = &Game{
+		Stream: &stream,
+		Screen: screen.NewScreen(),
+		GameHeading: screen.NewBlock(5, 5, []screen.PrintInterface{
+			screen.NewHeading("CLUE", "#"),
+		}),
+		GameBody:       screen.NewBlock(5, 5, []screen.PrintInterface{}),
+		Waiting_Screen: screen.NewBlock(5, 5, []screen.PrintInterface{}),
+		Characters:     make(map[string]*clue.Character),
+		Weapons:        make(map[string]*clue.Weapon),
+		Rooms:          make(map[string]*clue.Room),
+		Players:        make(map[string]*clue.Player),
 	}
 
-	fmt.Printf("Game Over\n")
+	char, room, weap := clue.ReadFile("/Users/ciaranotter/Documents/personal/command_line_clue/data/characters.csv", "/Users/ciaranotter/Documents/personal/command_line_clue/data/rooms.csv", "/Users/ciaranotter/Documents/personal/command_line_clue/data/weapons.csv")
 
-}
-
-func PickChar(name string) *clue.Player {
-
-	fmt.Printf("Pick a character:\n")
-	total := 0
-	for i, char := range clue.Characters {
-		total++
-		fmt.Printf("(%d) %s", total, char.GetString())
-
-		if av, p := CheckAvailable(i); !av {
-			fmt.Printf(" -> %s", p.GetString())
-		}
-
-		fmt.Printf("\n")
-	}
-	fmt.Printf("\n")
-	var choice string
-	var charChoice *clue.Character
-
-	for {
-		fmt.Scan(&choice)
-
-		i, err := strconv.Atoi(choice)
-
-		if (err != nil) || (i <= 0 && i > total) {
-			fmt.Printf("%s is not a valid choice\n")
-			continue
-		}
-
-		av, p := CheckAvailable(i - 1)
-		if !av {
-			fmt.Printf("%s has already been taken by %s\n", clue.Characters[i-1].GetString(), p.GetString())
-			continue
-		}
-
-		charChoice = clue.Characters[i-1]
-		break
+	for _, c := range char {
+		G.Characters[c.CharacterName] = c
 	}
 
-	s := clue.NewSheet(clue.DuplicateWeap(), clue.DuplicateRooms(), clue.DuplicateChars())
-
-	return clue.NewPlayer(name, charChoice, s)
-}
-
-func CheckAvailable(index int) (bool, *clue.Player) {
-	for _, pl := range Players {
-		if (pl.Char != nil) && (strings.Compare(pl.Char.CharacterName, clue.Characters[index].CharacterName) == 0) {
-			return false, pl
-		}
+	for _, w := range weap {
+		G.Weapons[w.Name] = w
 	}
 
-	return true, nil
+	for _, r := range room {
+		G.Rooms[r.RoomName] = r
+	}
+
+	G.Screen.AddBlock(G.GameHeading)
+	G.Screen.AddBlock(G.GameBody)
+
+	go G.Screen.Keys()
+	go refresh()
+	G.Login()
+
+	G.HandleMessage()
 }

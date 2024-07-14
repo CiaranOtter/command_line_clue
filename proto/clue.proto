@@ -12,7 +12,24 @@ message Message {
         StartGame start = 6;
         RemoveAnswer rAns = 7;
         Cards cards = 8;
+        StartTurn turn = 9;
+        EndTurn endturn = 10;
+        Move move = 11;
+        Accuse accuse = 12;
+        Show show = 13;
     }
+}
+
+message Move {
+    string RoomName = 1;
+}
+
+message StartTurn {
+
+}
+
+message EndTurn {
+
 }
 
 message RemoveAnswer {
@@ -22,7 +39,7 @@ message RemoveAnswer {
 }
 
 message Cards {
-    repeated int32 index = 1;
+    repeated string index = 1;
 }
 
 message Opponent {
@@ -30,7 +47,30 @@ message Opponent {
     oneof data {
         Connect con = 2;
         SetPlayer setChar = 3;
+        Move move =4;
+        Accuse accuse = 5;
+        AskShow Ask = 6;
+        Show show = 7;
+        StartTurn startturn = 8;
+        EndTurn endturn = 9;
     }
+}
+
+message AskShow {
+    repeated string cards = 1;
+}
+
+message Show {
+    string card = 1;
+    string PlayerName =2;
+    bool HasCard = 3;
+}
+
+message Accuse {
+    string Weap = 1;
+    string Char = 2;
+    string Room = 3;
+    bool final =4;
 }
 
 message GameEnd {
@@ -47,6 +87,7 @@ message Command {
 
 message Connect {
     string playerName = 1;
+    bool Success = 2;
 }
 
 message SetPlayer {

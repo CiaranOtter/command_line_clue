@@ -12,16 +12,6 @@ const (
 	CHARACTER     = 2
 )
 
-var Colours = map[string]string{
-	"Yellow": "\033[33m",
-	"Red":    "\033[31m",
-	"Purple": "\033[35m",
-	"Green":  "\033[32m",
-	"White":  "\033[37m",
-	"Blue":   "\033[34m",
-	"Reset":  "\033[0m",
-}
-
 var Characters []*Character
 var Rooms []*Room
 var Weapons []*Weapon
@@ -30,7 +20,7 @@ var Solve *Answer
 var Cards []Card
 
 type Card interface {
-	PrintCard()
+	PrintCard() string
 	GetString() string
 	GetType() int
 	GetValue() string
@@ -149,7 +139,7 @@ func ShuffleCards() {
 	}
 }
 
-func FindClues() (int, int, int) {
+func FindClues() *Answer {
 	i := rand.Intn(len(Characters))
 	j := rand.Intn(len(Rooms))
 	k := rand.Intn(len(Weapons))
@@ -175,6 +165,6 @@ func FindClues() (int, int, int) {
 		Cards = append(Cards, weap)
 	}
 
-	ShuffleCards()
-	return i, j, k
+	// ShuffleCards()
+	return Solve
 }
