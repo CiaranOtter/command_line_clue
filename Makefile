@@ -1,4 +1,7 @@
-OUT_DIR = /Users/ciaranotter/Documents/personal/command_line_clue/web_app/client/src/comm
+OUT_DIR=services
 
 all:
-	protoc --go_out=. --go-grpc_out=. proto/clue.proto
+	protoc --go_out=$(OUT_DIR) --go-grpc_out=$(OUT_DIR) protos/profile.proto
+
+clean:
+	rm -rf services/*.proto

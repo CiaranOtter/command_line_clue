@@ -1,0 +1,18 @@
+syntax="proto3";
+
+package profile;
+
+option go_package="./profile";
+
+message Account {
+    string name = 1;
+}
+
+message Reply {
+    bool success = 1;
+}
+
+service AccountService {
+    rpc Login(Account) returns(Reply);
+    rpc Logout(Account)returns(Reply);
+}
