@@ -88,7 +88,7 @@ func (g Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		g.mainscreen.header = fmt.Sprintf("%s: %s", g.mainscreen.header, msg.GetCharString())
 		g.active_screen = g.mainscreen
 		g.User_colour = msg.GetColour()
-		g.mainscreen.chatWindow.SetColour(g.User_colour)
+		(g.mainscreen.chatWindow).SetColour(g.User_colour)
 	case tea.WindowSizeMsg:
 
 		windowHeight = msg.Height
