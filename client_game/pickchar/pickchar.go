@@ -3,6 +3,7 @@ package pickchar
 import (
 	"command_line_clue/characters"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -24,6 +25,10 @@ type PickChar struct {
 	choice  CharChoice
 }
 
+func (p PickChar) GetCharString() string {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(Colours[p.choices.choices[p.cursor].Char.Colour])).Render(p.choices.choices[p.cursor].Char.Name)
+}
+
 func (p PickChar) Init() tea.Cmd {
 	return nil
 }
@@ -40,6 +45,9 @@ func (p PickChar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.choice = p.choices.choices[p.cursor]
 			p.choices.choices[p.cursor].taken = true
 			// return p, tea.Quit
+			return p, tea.Tick(time.Second/60, func(time.Time) tea.Msg {
+				return p
+			})
 
 		case "down", "j":
 			p.cursor++
