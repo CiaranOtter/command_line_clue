@@ -62,6 +62,11 @@ Type a message and press Enter to send.`)
 	}
 }
 
+func (c *ChatWindow) SetColour(colour string) {
+	chat_style = chat_style.BorderForeground(lipgloss.Color(colour))
+	c.senderStyle = c.senderStyle.Foreground(lipgloss.Color(colour)).Faint(true)
+}
+
 func (c ChatWindow) Init() tea.Cmd {
 	return textarea.Blink
 }

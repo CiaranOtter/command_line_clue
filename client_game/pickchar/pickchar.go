@@ -29,6 +29,10 @@ func (p PickChar) GetCharString() string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(Colours[p.choices.choices[p.cursor].Char.Colour])).Render(p.choices.choices[p.cursor].Char.Name)
 }
 
+func (p PickChar) GetColour() string {
+	return Colours[p.choice.Char.Colour]
+}
+
 func (p PickChar) Init() tea.Cmd {
 	return nil
 }

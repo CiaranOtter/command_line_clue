@@ -7,6 +7,7 @@ import (
 	"command_line_clue/characters"
 	"fmt"
 	"log"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -63,6 +64,7 @@ type Game struct {
 	login         login.Login
 	charchioce    pickchar.PickChar
 	mainscreen    MainScreen
+	User_colour   string
 }
 
 func (g Game) Init() tea.Cmd {
@@ -85,6 +87,8 @@ func (g Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case pickchar.PickChar:
 		g.mainscreen.header = fmt.Sprintf("%s: %s", g.mainscreen.header, msg.GetCharString())
 		g.active_screen = g.mainscreen
+		g.User_colour = msg.GetColour()
+		g.mainscreen.chatWindow.SetColour(g.User_colour)
 	case tea.WindowSizeMsg:
 
 		windowHeight = msg.Height
@@ -106,6 +110,8 @@ func (g Game) View() string {
 }
 
 func initialModel() tea.Model {
+
+	char_file := os.Getenv("CHAR_FILE")
 	login := login.NewLogin()
 	header_style = lipgloss.NewStyle().Border(lipgloss.DoubleBorder(), false, false, true)
 	body_style = lipgloss.NewStyle()
@@ -116,13 +122,14 @@ func initialModel() tea.Model {
 		active_screen: login,
 		login:         login,
 		mainscreen:    NewMainScreen(),
-		charchioce:    pickchar.NewChoice(characters.LoadCharacters("/Users/ciaranotter/Documents/personal/command_line_clue/command_line_clue/data/characters.csv")),
+		charchioce:    pickchar.NewChoice(characters.LoadCharacters(char_file)),
 	}
 
 	return game
 }
 
 func main() {
+
 	P = tea.NewProgram(initialModel())
 	if _, err := P.Run(); err != nil {
 		log.Fatal(err)
