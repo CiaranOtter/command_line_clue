@@ -19,10 +19,12 @@ func (a *AccountService) Login(ctx context.Context, in *profile.Account) (*profi
 
 	if in.GetRegister() {
 
-		_, err := a.DB.Exec("INSERT INTO account (name, surnmane, usernamne) VALUES ('$1','$2','$3')", in.GetName(), in.GetSurname(), in.GetUsername())
+		log.Printf("New register request")
+
+		_, err := a.DB.Exec("INSERT INTO account (name, surname, username) VALUES ($1,$2,$3)", in.GetName(), in.GetSurname(), in.GetUsername())
 
 		if err != nil {
-			log.Fatalf("Failed to register new user", "error", err)
+			log.Printf("Failed to register new user", "error", err)
 			return nil, err
 		}
 
@@ -31,11 +33,13 @@ func (a *AccountService) Login(ctx context.Context, in *profile.Account) (*profi
 		}, nil
 	}
 
+	log.Printf("New login request")
+
 	var id int = -1
 	err := a.DB.QueryRow("SELECT id FROM account WHERE username=$1", in.GetUsername()).Scan(&id)
 
 	if err != nil {
-		log.Fatalf("Failed to register new user", "error", err)
+		log.Printf("Failed to register new user", "error", err)
 		return nil, err
 	}
 
@@ -43,10 +47,10 @@ func (a *AccountService) Login(ctx context.Context, in *profile.Account) (*profi
 		return nil, status.Error(codes.NotFound, "Failed to find an account with the given username")
 	}
 
-	_, err = a.DB.Exec("UPDATE SET logged_in SET logged_in = true WHERE id = $1", id)
+	_, err = a.DB.Exec("UPDATE account SET logged_in = true WHERE id = $1", id)
 
 	if err != nil {
-		log.Fatalf("Failed to register new user", "error", err)
+		log.Printf("Failed to register new user", "error", err)
 		return nil, err
 	}
 
@@ -56,10 +60,17 @@ func (a *AccountService) Login(ctx context.Context, in *profile.Account) (*profi
 }
 
 func (a *AccountService) Logout(ctx context.Context, in *profile.Account) (*profile.Reply, error) {
-	_, err := a.DB.Exec("UPDATE account SET logged_in = false WHERE usernmane = $1", in.GetUsername())
+	log.Printf("New logout request")
+
+	res, err := a.DB.Exec("UPDATE account SET logged_in = false WHERE username = $1", in.GetUsername())
+
 	if err != nil {
+		log.Printf("No account with the given usernamen could be found")
 		return nil, status.Error(codes.NotFound, "No account with the given usernamen could be found")
 	}
+
+	c, err := res.RowsAffected()
+	log.Printf("%s successfully logged out. This affecte %d rows", in.GetUsername(), c)
 
 	return &profile.Reply{
 		Success: true,

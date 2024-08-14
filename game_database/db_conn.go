@@ -15,9 +15,15 @@ func OpenDB() *sql.DB {
 	pass := os.Getenv("POSTGRES_PASSWORD")
 	db := os.Getenv("POSTGRES_DB")
 
-	psqlconn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, pass, db)
+	psqlconn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", host, port, user, pass, db)
 
-	conn, err := sql.Open("pstgres", psqlconn)
+	conn, err := sql.Open("postgres", psqlconn)
+
+	if err != nil {
+		panic(err)
+	}
+
+	err = conn.Ping()
 
 	if err != nil {
 		panic(err)

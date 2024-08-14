@@ -1,10 +1,10 @@
 package main
 
 import (
-	"account_service/account_service"
-	"clc_services/profile"
+	"clc_services/message"
 	database "game_database"
 	"log"
+	"message_service/message_service"
 	"net"
 
 	"google.golang.org/grpc"
@@ -21,11 +21,11 @@ func main() {
 	server := grpc.NewServer()
 	defer server.GracefulStop()
 
-	service := &account_service.AccountService{
+	service := &message_service.MessageServer{
 		DB: database.OpenDB(),
 	}
 
-	profile.RegisterAccountServiceServer(server, service)
+	message.RegisterMessageServiceServer(server, service)
 
 	err = server.Serve(list)
 

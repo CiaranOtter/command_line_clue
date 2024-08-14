@@ -14,6 +14,7 @@ RUN go mod tidy
 RUN go build -o /game-server main.go 
 
 RUN sh -c "rm -rf ./src"
+RUN go clean -cache
 
 EXPOSE 5000
 

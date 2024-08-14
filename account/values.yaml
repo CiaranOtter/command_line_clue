@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image: 
-  repo: game-service:latest
+  repo: account_service
   tag: latest
 
 imagePullSecrets: []
@@ -29,6 +29,6 @@ securityContext: {}
 
 service:
   type: NodePort
-  port: 80
+  port: 8080
 
 

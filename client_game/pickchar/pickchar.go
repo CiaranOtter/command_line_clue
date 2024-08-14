@@ -37,9 +37,6 @@ func (p PickChar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q", "esc":
-			return p, tea.Quit
-
 		case "enter":
 			// Send the choice on the channel and exit.
 			p.choice = p.choices.choices[p.cursor]

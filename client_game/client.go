@@ -10,9 +10,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"google.golang.org/grpc"
 )
 
 var P *tea.Program
+var conn *grpc.ClientConn
 
 var (
 	header_style     lipgloss.Style
@@ -60,9 +62,10 @@ func (m MainScreen) View() string {
 
 type Game struct {
 	active_screen tea.Model
-	login         login.Login
+	login         login.LoginOrRegsiter
 	charchioce    pickchar.PickChar
 	mainscreen    MainScreen
+	quit          bool
 }
 
 func (g Game) Init() tea.Cmd {
@@ -77,10 +80,22 @@ func (g Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
-			return g, tea.Quit
+			var inter tea.Model
+			inter, cmd = g.login.Logout()
+			g.login = inter.(login.LoginOrRegsiter)
+
+			g.quit = true
+			return g, cmd
 		}
-	case login.Login:
-		g.mainscreen.header = msg.Login.Value()
+	case login.Logout:
+		if msg.Message.GetSuccess() {
+			if g.quit {
+				return g, tea.Quit
+			}
+		}
+	case login.LoginOrRegsiter:
+		g.mainscreen.header = msg.Username
+		g.login.Username = msg.Username
 		g.active_screen = g.charchioce
 	case pickchar.PickChar:
 		g.mainscreen.header = fmt.Sprintf("%s: %s", g.mainscreen.header, msg.GetCharString())
@@ -106,15 +121,16 @@ func (g Game) View() string {
 }
 
 func initialModel() tea.Model {
-	login := login.NewLogin()
+	l := login.NewLoginChoice(conn)
 	header_style = lipgloss.NewStyle().Border(lipgloss.DoubleBorder(), false, false, true)
 	body_style = lipgloss.NewStyle()
 	t := lipgloss.NewStyle()
 	side_panle_style = &t
 
 	game := Game{
-		active_screen: login,
-		login:         login,
+		quit:          false,
+		active_screen: l,
+		login:         l.(login.LoginOrRegsiter),
 		mainscreen:    NewMainScreen(),
 		charchioce:    pickchar.NewChoice(characters.LoadCharacters("/Users/ciaranotter/Documents/personal/command_line_clue/command_line_clue/data/characters.csv")),
 	}
@@ -123,6 +139,15 @@ func initialModel() tea.Model {
 }
 
 func main() {
+	var err error
+	conn, err = grpc.NewClient("localhost:5000", grpc.WithInsecure())
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer conn.Close()
+
 	P = tea.NewProgram(initialModel())
 	if _, err := P.Run(); err != nil {
 		log.Fatal(err)
