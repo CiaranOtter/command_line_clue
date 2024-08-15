@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: action/checkout@v3
+        uses: action/checkout@v4
 
       - name: Log in to the Container registry
-        uses: docker/log-action@v1
+        uses: docker/login-action@v3.3.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
