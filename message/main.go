@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	list, err := net.Listen("tcp", ":5000")
+	list, err := net.Listen("tcp", ":6000")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -22,7 +22,8 @@ func main() {
 	defer server.GracefulStop()
 
 	service := &message_service.MessageServer{
-		DB: database.OpenDB(),
+		DB:           database.OpenDB(),
+		Sender_chans: make(map[string](chan *message.ReceiveMessage)),
 	}
 
 	message.RegisterMessageServiceServer(server, service)
