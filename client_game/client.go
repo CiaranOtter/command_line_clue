@@ -15,6 +15,7 @@ import (
 
 var P *tea.Program
 var conn *grpc.ClientConn
+var chat_conn *grpc.ClientConn
 
 var (
 	header_style     lipgloss.Style
@@ -34,12 +35,13 @@ type MainScreen struct {
 
 func NewMainScreen() MainScreen {
 	return MainScreen{
-		chatWindow: chat.NewChatWindow(side_panle_style),
+		chatWindow: chat.NewChatWindow(side_panle_style, chat_conn, P),
 		container:  "test window",
 	}
 }
 
 func (m MainScreen) Init() tea.Cmd {
+	m.chatWindow.Init()
 	return nil
 }
 
@@ -69,7 +71,7 @@ type Game struct {
 }
 
 func (g Game) Init() tea.Cmd {
-	return g.active_screen.Init()
+	return nil
 }
 
 func (g Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -96,10 +98,21 @@ func (g Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case login.LoginOrRegsiter:
 		g.mainscreen.header = msg.Username
 		g.login.Username = msg.Username
+		temp := g.mainscreen.chatWindow.(chat.ChatWindow)
+		temp.Username = msg.Username
+		g.mainscreen.chatWindow = temp
+
 		g.active_screen = g.charchioce
 	case pickchar.PickChar:
 		g.mainscreen.header = fmt.Sprintf("%s: %s", g.mainscreen.header, msg.GetCharString())
+
+		temp := g.mainscreen.chatWindow.(chat.ChatWindow)
+		temp.ProgPtr = P
+		g.mainscreen.chatWindow = temp
 		g.active_screen = g.mainscreen
+
+		cmd := g.active_screen.Init()
+		cmds = append(cmds, cmd)
 	case tea.WindowSizeMsg:
 
 		windowHeight = msg.Height
@@ -120,7 +133,7 @@ func (g Game) View() string {
 	return g.active_screen.View()
 }
 
-func initialModel() tea.Model {
+func initialModel() Game {
 	l := login.NewLoginChoice(conn)
 	header_style = lipgloss.NewStyle().Border(lipgloss.DoubleBorder(), false, false, true)
 	body_style = lipgloss.NewStyle()
@@ -146,9 +159,17 @@ func main() {
 		panic(err)
 	}
 
+	chat_conn, err = grpc.NewClient("localhost:6000", grpc.WithInsecure())
+
+	if err != nil {
+		panic(err)
+	}
+
 	defer conn.Close()
 
-	P = tea.NewProgram(initialModel())
+	model := initialModel()
+	P = tea.NewProgram(model)
+
 	if _, err := P.Run(); err != nil {
 		log.Fatal(err)
 	}
