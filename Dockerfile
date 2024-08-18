@@ -14,8 +14,9 @@ RUN go mod tidy
 RUN go build -o /game-server main.go 
 
 RUN sh -c "rm -rf ./src"
-RUN go clean -cache
+RUN go clean -cache -modcache
 
 EXPOSE 5000
+EXPOSE 5432
 
 ENTRYPOINT [ "/game-server" ]
