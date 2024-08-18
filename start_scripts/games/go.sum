@@ -1,3 +1,5 @@
+github.com/CiaranOtter/command_line_clue/server v0.0.0-20240818180706-fa29ad439126 h1:32j8OFp8W2Wn0AOysiImvN47k+285wkbcLGROCdgC9k=
+github.com/CiaranOtter/command_line_clue/server v0.0.0-20240818180706-fa29ad439126/go.mod h1:NARUgSO8nTH93DUFrrtqIiyJFvH8UmI+IhWxvVR7h1M=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/lib/pq v1.10.9 h1:YXG7RB+JIjhP29X+OtkiDnYaXQwpS4JEWq7dtCCRUEw=

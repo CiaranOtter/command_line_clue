@@ -3,7 +3,6 @@ module game_service_entry_point
 go 1.22.2
 
 require (
-	github.com/CiaranOtter/command_line_clue/server v0.0.0-20240818180706-fa29ad439126
 	google.golang.org/grpc v1.65.0
 )
 
@@ -15,5 +14,3 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240528184218-531527333157 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 )
-
-replace github.com/CiaranOtter/command_line_clue/server => ../../server
