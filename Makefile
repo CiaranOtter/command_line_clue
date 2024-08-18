@@ -1,4 +1,4 @@
-OUT_DIR=clc_services
+OUT_DIR=server/clc_services
 
 all:
 	protoc --go_out=$(OUT_DIR) --go-grpc_out=$(OUT_DIR) protos/profile.proto

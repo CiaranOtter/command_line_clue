@@ -1,10 +1,11 @@
 package account_service
 
 import (
-	"clc_services/profile"
 	"context"
 	"database/sql"
 	"log"
+
+	"github.com/CiaranOtter/command_line_clue/server/clc_services/profile"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

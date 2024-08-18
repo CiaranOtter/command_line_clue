@@ -1,11 +1,12 @@
 package message_service
 
 import (
-	"clc_services/message"
 	"context"
 	"database/sql"
 	"log"
 	"strings"
+
+	"github.com/CiaranOtter/command_line_clue/server/clc_services/message"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

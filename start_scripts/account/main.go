@@ -1,11 +1,14 @@
 package main
 
 import (
-	"account_service/account_service"
-	"clc_services/profile"
-	database "game_database"
 	"log"
 	"net"
+
+	database "github.com/CiaranOtter/command_line_clue/server/game_database"
+
+	"github.com/CiaranOtter/command_line_clue/server/clc_services/profile"
+
+	"github.com/CiaranOtter/command_line_clue/server/account_service"
 
 	"google.golang.org/grpc"
 )
