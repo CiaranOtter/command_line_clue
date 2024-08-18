@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "service-template.name" . }}
+  name: {{ include "server-service-template.fullname" . }}
   labels:
-    {{- include "service-template.labels" . | nindent 4 }}
+    {{- include "server-service-template.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "service-template.selectorLabels" . | nindent 6 }}
+      {{- include "server-service-template.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -18,19 +18,16 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "service-template.labels" . | nindent 8 }}
+        {{- include "server-service-template.labels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      envFrom:
-        - configMapRef:
-            name: my-release-postgresql
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "service-template.serviceAccountName" . }}
+      serviceAccountName: {{ include "server-service-template.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:

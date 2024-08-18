@@ -1,4 +1,4 @@
-package game_databae
+package game_database
 
 import (
 	"database/sql"

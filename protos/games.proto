@@ -1,0 +1,18 @@
+syntax="proto3";
+
+package games;
+
+option go_package = "./games";
+
+message GameItem {
+    string name =1;
+}
+
+message Response {
+    bool success = 1;
+
+}
+
+service GameService {
+    rpc RegisterNewGame(GameItem) returns(Response);
+}
