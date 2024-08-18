@@ -8,7 +8,6 @@ import (
 
 	"github.com/CiaranOtter/command_line_clue/server/clc_services/message"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -58,7 +57,7 @@ func (m MessageServer) SendMessage(ctx context.Context, in *message.Message) (*m
 	}, nil
 }
 
-func (m *MessageServer) ReceiveMessages(in *message.JoinChat, stream grpc.ServerStreamingServer[message.ReceiveMessage]) error {
+func (m *MessageServer) ReceiveMessages(in *message.JoinChat, stream message.MessageService_ReceiveMessagesServer) error {
 
 	messageChannel := make(chan *message.ReceiveMessage, 10)
 
