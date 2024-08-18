@@ -25,6 +25,16 @@ entries:
   server-service-template:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-08-18T14:30:43.957494769Z"
+    description: A Helm chart for Kubernetes
+    digest: e42b06c11859750fba339e24b7c154b26b01112f65deeb24613d4bc93e5577cd
+    name: server-service-template
+    type: application
+    urls:
+    - https://github.com/CiaranOtter/command_line_clue/releases/download/server-service-template-0.1.1/server-service-template-0.1.1.tgz
+    version: 0.1.1
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-08-18T11:35:20.225111171Z"
     description: A Helm chart for Kubernetes
     digest: b0159f9dcb3bc5a0340aa3ec7bdae85af31aff79daac2af1413478b36e4581c8
@@ -33,4 +43,4 @@ entries:
     urls:
     - https://github.com/CiaranOtter/command_line_clue/releases/download/server-service-template-0.1.0/server-service-template-0.1.0.tgz
     version: 0.1.0
-generated: "2024-08-18T11:35:20.225117463Z"
+generated: "2024-08-18T14:30:43.957528502Z"
