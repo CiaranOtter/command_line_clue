@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: games-service-container
+  IMAGE_NAME: games_service_container
 
 jobs:
   build-and-push-image:
