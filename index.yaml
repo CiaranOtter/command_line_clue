@@ -1,5 +1,16 @@
 apiVersion: v1
 entries:
+  command-line-clue:
+  - apiVersion: v2
+    appVersion: v0.1.0
+    created: "2024-08-18T10:30:19.370358207Z"
+    description: A Helm chart for Kubernetes
+    digest: 688063676334cde5494b91097bc9e2728965e242ac781c2daa93457515e091a1
+    name: command-line-clue
+    type: application
+    urls:
+    - https://github.com/CiaranOtter/command_line_clue/releases/download/command-line-clue-0.1.0/command-line-clue-0.1.0.tgz
+    version: 0.1.0
   game-service:
   - apiVersion: v2
     appVersion: 0.1.0
@@ -11,4 +22,4 @@ entries:
     urls:
     - https://github.com/CiaranOtter/command_line_clue/releases/download/game-service-0.1.0/game-service-0.1.0.tgz
     version: 0.1.0
-generated: "2024-08-15T23:21:25.845995507Z"
+generated: "2024-08-18T10:30:19.370369358Z"
