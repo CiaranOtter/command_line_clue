@@ -1,4 +1,4 @@
-name: Create and publish account Docker image
+name: Create and publish games Docker image
 
 on:
   release:
