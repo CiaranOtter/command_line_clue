@@ -3,7 +3,7 @@ module game_service_entry_point
 go 1.22.2
 
 require (
-	github.com/CiaranOtter/command_line_clue/server v0.0.0-20240818121239-7660ed4e2ac8
+	github.com/CiaranOtter/command_line_clue/server v0.0.0-20240818143025-8e045d9477bb
 	google.golang.org/grpc v1.65.0
 )
 
