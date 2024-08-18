@@ -3,10 +3,12 @@ module clue_client
 go 1.22.6
 
 require (
+	clc_services v0.0.0-00010101000000-000000000000
 	command_line_clue v0.0.0-00010101000000-000000000000
 	github.com/charmbracelet/bubbles v0.18.0
 	github.com/charmbracelet/bubbletea v0.26.6
 	github.com/charmbracelet/lipgloss v0.12.1
+	google.golang.org/grpc v1.65.0
 )
 
 require (
@@ -26,9 +28,14 @@ require (
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	golang.org/x/net v0.25.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240528184218-531527333157 // indirect
+	google.golang.org/protobuf v1.34.2 // indirect
 )
+
+replace clc_services => ../clc_services
 
 replace command_line_clue => ../command_line_clue

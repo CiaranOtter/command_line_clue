@@ -4,16 +4,28 @@ package chat
 // component library.
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"log"
 	"strings"
+
+	"clc_services/message"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"google.golang.org/grpc"
 )
 
 type (
-	errMsg error
+	errMsg      error
+	updateMsg   struct{}
+	ChatMessage struct {
+		message *message.ReceiveMessage
+		err     error
+	}
 )
 
 var (
@@ -27,9 +39,15 @@ type ChatWindow struct {
 	senderStyle     lipgloss.Style
 	container_style *lipgloss.Style
 	err             error
+	chat_conn       message.MessageServiceClient
+	Username        string
+	chatcontext     context.Context
+	ProgPtr         *tea.Program
 }
 
-func NewChatWindow(cont_style *lipgloss.Style) ChatWindow {
+func NewChatWindow(cont_style *lipgloss.Style, conn *grpc.ClientConn, prog *tea.Program) ChatWindow {
+	chat_conn := message.NewMessageServiceClient(conn)
+
 	chat_style = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#88d498"))
 	ta := textarea.New()
 	ta.Placeholder = "Send a message..."
@@ -59,6 +77,8 @@ Type a message and press Enter to send.`)
 		senderStyle:     lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
 		container_style: cont_style,
 		err:             nil,
+		chat_conn:       chat_conn,
+		chatcontext:     context.Background(),
 	}
 }
 
@@ -68,7 +88,33 @@ func (c *ChatWindow) SetColour(colour string) {
 }
 
 func (c ChatWindow) Init() tea.Cmd {
+	go c.ReceiveMessages()
 	return textarea.Blink
+}
+
+func (c *ChatWindow) ReceiveMessages() {
+	stream, err := c.chat_conn.ReceiveMessages(c.chatcontext, &message.JoinChat{
+		Username: c.Username,
+	})
+
+	if err != nil {
+		log.Printf("Failed to join the chat")
+		c.ProgPtr.Send(err)
+		return
+	}
+
+	for {
+		msg, err := stream.Recv()
+		c.ProgPtr.Send(ChatMessage{
+			message: msg,
+			err:     err,
+		})
+
+		if err == io.EOF {
+			return
+		}
+	}
+
 }
 
 func (c ChatWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -81,10 +127,35 @@ func (c ChatWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	c.viewport, vpCmd = c.viewport.Update(msg)
 
 	switch msg := msg.(type) {
+	case ChatMessage:
+		chat := msg.message
+		err := msg.err
+
+		if err == io.EOF {
+			c.messages = append(c.messages, lipgloss.NewStyle().Faint(true).Render("Chat has ended"))
+			c.chatcontext.Done()
+		} else if err != nil {
+			c.messages = append(c.messages, lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("Failed to recieve message!")))
+		} else {
+			c.messages = append(c.messages, c.senderStyle.Render(fmt.Sprintf("%s: ", chat.GetUsername()))+chat.GetMessage())
+		}
+
+		c.viewport.SetContent(strings.Join(c.messages, "\n"))
+		c.textarea.Reset()
+
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
-			c.messages = append(c.messages, c.senderStyle.Render("You: ")+c.textarea.Value())
+			_, err := c.chat_conn.SendMessage(context.Background(), &message.Message{
+				Username: c.Username,
+				Message:  c.textarea.Value(),
+			})
+
+			if err != nil {
+				c.messages = append(c.messages, lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("Failed to send message: %s\n%s", c.textarea.Value(), err.Error())))
+			} else {
+				c.messages = append(c.messages, c.senderStyle.Render("You: ")+c.textarea.Value())
+			}
 			c.viewport.SetContent(strings.Join(c.messages, "\n"))
 			c.textarea.Reset()
 			c.viewport.GotoBottom()
@@ -93,6 +164,7 @@ func (c ChatWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// We handle errors just like any other message
 	case errMsg:
 		c.err = msg
+		c.messages = append(c.messages, lipgloss.NewStyle().Faint(true).Render(fmt.Sprintf("Failed to send message: %s\n%s", c.textarea.Value(), msg.Error())))
 		return c, nil
 	}
 

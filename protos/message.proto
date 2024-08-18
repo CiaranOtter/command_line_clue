@@ -1,0 +1,28 @@
+syntax="proto3";
+
+package message;
+
+option go_package = "./message";
+
+message Message {
+    string Username = 1;
+    string message = 2;
+}
+
+message ReceiveMessage {
+    string username = 1;
+    string message = 2;
+}
+
+message JoinChat {
+    string username = 1;
+}
+
+message Reply {
+    bool success = 1;
+}
+
+service MessageService {
+    rpc SendMessage(Message) returns(Reply);
+    rpc ReceiveMessages(JoinChat) returns(stream ReceiveMessage);
+}

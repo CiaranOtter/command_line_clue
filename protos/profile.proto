@@ -6,6 +6,9 @@ option go_package="./profile";
 
 message Account {
     string name = 1;
+    string surname = 2;
+    string username = 3;
+    bool register = 4;
 }
 
 message Reply {

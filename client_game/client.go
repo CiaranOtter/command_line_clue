@@ -7,13 +7,15 @@ import (
 	"command_line_clue/characters"
 	"fmt"
 	"log"
-	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"google.golang.org/grpc"
 )
 
 var P *tea.Program
+var conn *grpc.ClientConn
+var chat_conn *grpc.ClientConn
 
 var (
 	header_style     lipgloss.Style
@@ -33,12 +35,13 @@ type MainScreen struct {
 
 func NewMainScreen() MainScreen {
 	return MainScreen{
-		chatWindow: chat.NewChatWindow(side_panle_style),
+		chatWindow: chat.NewChatWindow(side_panle_style, chat_conn, P),
 		container:  "test window",
 	}
 }
 
 func (m MainScreen) Init() tea.Cmd {
+	m.chatWindow.Init()
 	return nil
 }
 
@@ -61,14 +64,14 @@ func (m MainScreen) View() string {
 
 type Game struct {
 	active_screen tea.Model
-	login         login.Login
+	login         login.LoginOrRegsiter
 	charchioce    pickchar.PickChar
 	mainscreen    MainScreen
-	User_colour   string
+	quit          bool
 }
 
 func (g Game) Init() tea.Cmd {
-	return g.active_screen.Init()
+	return nil
 }
 
 func (g Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -79,16 +82,37 @@ func (g Game) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
-			return g, tea.Quit
+			var inter tea.Model
+			inter, cmd = g.login.Logout()
+			g.login = inter.(login.LoginOrRegsiter)
+
+			g.quit = true
+			return g, cmd
 		}
-	case login.Login:
-		g.mainscreen.header = msg.Login.Value()
+	case login.Logout:
+		if msg.Message.GetSuccess() {
+			if g.quit {
+				return g, tea.Quit
+			}
+		}
+	case login.LoginOrRegsiter:
+		g.mainscreen.header = msg.Username
+		g.login.Username = msg.Username
+		temp := g.mainscreen.chatWindow.(chat.ChatWindow)
+		temp.Username = msg.Username
+		g.mainscreen.chatWindow = temp
+
 		g.active_screen = g.charchioce
 	case pickchar.PickChar:
 		g.mainscreen.header = fmt.Sprintf("%s: %s", g.mainscreen.header, msg.GetCharString())
+
+		temp := g.mainscreen.chatWindow.(chat.ChatWindow)
+		temp.ProgPtr = P
+		g.mainscreen.chatWindow = temp
 		g.active_screen = g.mainscreen
-		g.User_colour = msg.GetColour()
-		(g.mainscreen.chatWindow).SetColour(g.User_colour)
+
+		cmd := g.active_screen.Init()
+		cmds = append(cmds, cmd)
 	case tea.WindowSizeMsg:
 
 		windowHeight = msg.Height
@@ -109,18 +133,17 @@ func (g Game) View() string {
 	return g.active_screen.View()
 }
 
-func initialModel() tea.Model {
-
-	char_file := os.Getenv("CHAR_FILE")
-	login := login.NewLogin()
+func initialModel() Game {
+	l := login.NewLoginChoice(conn)
 	header_style = lipgloss.NewStyle().Border(lipgloss.DoubleBorder(), false, false, true)
 	body_style = lipgloss.NewStyle()
 	t := lipgloss.NewStyle()
 	side_panle_style = &t
 
 	game := Game{
-		active_screen: login,
-		login:         login,
+		quit:          false,
+		active_screen: l,
+		login:         l.(login.LoginOrRegsiter),
 		mainscreen:    NewMainScreen(),
 		charchioce:    pickchar.NewChoice(characters.LoadCharacters(char_file)),
 	}
@@ -129,8 +152,24 @@ func initialModel() tea.Model {
 }
 
 func main() {
+	var err error
+	conn, err = grpc.NewClient("localhost:5000", grpc.WithInsecure())
 
-	P = tea.NewProgram(initialModel())
+	if err != nil {
+		panic(err)
+	}
+
+	chat_conn, err = grpc.NewClient("localhost:6000", grpc.WithInsecure())
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer conn.Close()
+
+	model := initialModel()
+	P = tea.NewProgram(model)
+
 	if _, err := P.Run(); err != nil {
 		log.Fatal(err)
 	}
