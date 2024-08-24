@@ -15,4 +15,4 @@ RUN go clean -cache -modcache -fuzzcache
 
 EXPOSE 5000
 
-ENTRYPOINT [ "/server" ]
+RUN [ "/server" ]
